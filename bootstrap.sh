@@ -115,9 +115,34 @@ EOT
     fi
 
     # ------------------------------------------------------------------
-    # 4. chezmoi + Dotfiles
+    # 4. Shell-Umgebung (zsh + Oh My Zsh + Plugins + Powerlevel10k)
+    #    Immer installieren - die Dotfiles (.zshrc) setzen sie voraus.
     # ------------------------------------------------------------------
-    echo -e "${YELLOW}--- 4. chezmoi + Dotfiles ---${NC}"
+    echo -e "${YELLOW}--- 4. Shell-Umgebung (zsh/OMZ/P10k) ---${NC}"
+    if ! command -v zsh >/dev/null 2>&1; then
+        sudo apt update && sudo apt install -y zsh
+    fi
+    if [ ! -d "$HOME/.oh-my-zsh" ]; then
+        sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+    fi
+    local ZSH_CUSTOM="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}"
+    if [ ! -d "$ZSH_CUSTOM/plugins/zsh-autosuggestions" ]; then
+        git clone https://github.com/zsh-users/zsh-autosuggestions "$ZSH_CUSTOM/plugins/zsh-autosuggestions"
+    fi
+    if [ ! -d "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" ]; then
+        git clone https://github.com/zsh-users/zsh-syntax-highlighting.git "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting"
+    fi
+    if [ ! -d "$ZSH_CUSTOM/themes/powerlevel10k" ]; then
+        git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "$ZSH_CUSTOM/themes/powerlevel10k"
+    fi
+    if [ "${SHELL:-}" != "$(command -v zsh)" ]; then
+        sudo chsh -s "$(command -v zsh)" "$(whoami)"
+    fi
+
+    # ------------------------------------------------------------------
+    # 5. chezmoi + Dotfiles
+    # ------------------------------------------------------------------
+    echo -e "${YELLOW}--- 5. chezmoi + Dotfiles ---${NC}"
     if ! command -v chezmoi >/dev/null 2>&1; then
         sudo sh -c "$(curl -fsLS get.chezmoi.io)" -- -b /usr/local/bin
     fi
@@ -125,12 +150,12 @@ EOT
     echo -e "${GREEN}Dotfiles angewendet.${NC}"
 
     # ------------------------------------------------------------------
-    # 5. Rollen-Bootstrap starten
+    # 6. Rollen-Bootstrap starten
     # ------------------------------------------------------------------
     local PROV_DIR="$HOME/.local/share/provisioning"
 
     echo ""
-    echo -e "${YELLOW}--- 5. Rollen-Bootstrap ---${NC}"
+    echo -e "${YELLOW}--- 6. Rollen-Bootstrap ---${NC}"
 
     local CANDIDATES=()
     mapfile -t CANDIDATES < <(find "$PROV_DIR" -maxdepth 2 -name 'bootstrap_*.sh' 2>/dev/null | sort)
