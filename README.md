@@ -23,3 +23,13 @@ curl -fsSL https://raw.githubusercontent.com/decebu/bootstrap/<commit-sha>/boots
 
 Hinweis: Dieses Repo ist bewusst öffentlich und enthält keine internen Informationen.
 Der erzeugte Key ist wertlos, bis er manuell im GitHub-Account freigeschaltet wird.
+
+## Trust-Anker (Supply-Chain)
+
+Das Skript führt bewusst Code aus diesen externen Quellen aus — bei Anpassungen prüfen:
+
+- `get.chezmoi.io` — chezmoi-Installer (als **User** nach `~/.local/bin`, nicht als root).
+- `raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh` — Oh-My-Zsh (unattended).
+- GitHub-Clones für zsh-Plugins und Powerlevel10k — auf feste Tags gepinnt (`--branch`, `--depth 1`).
+- GitHub-Hostkeys werden aus dem Skript in `~/.ssh/known_hosts` gepinnt
+  (`StrictHostKeyChecking=yes`), statt den Erstkontakt blind zu akzeptieren.

@@ -24,17 +24,35 @@ set -euo pipefail
 GH_USER="decebu"
 DOTFILES_REPO="git@github.com:${GH_USER}/dotfiles.git"
 
+# Gepinnte Versionen der Shell-Erweiterungen (Supply-Chain, Audit DOT-03)
+ZSH_AUTOSUGGESTIONS_TAG="v0.7.1"
+ZSH_SYNTAX_HIGHLIGHTING_TAG="0.8.0"
+POWERLEVEL10K_TAG="v1.20.0"
+
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
+
+# Offizielle GitHub-Hostkeys (https://api.github.com/meta) pinnen, statt den
+# Erstkontakt ungeprueft zu akzeptieren (Audit DOT-07).
+ensure_github_hostkeys() {
+    mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
+    if ! grep -q '^github\.com ' "$HOME/.ssh/known_hosts" 2>/dev/null; then
+        cat <<'EOT' >> "$HOME/.ssh/known_hosts"
+github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
+github.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRrYMjNuG5N87uRgg6CLrbo5wAdT/y6v0mKV0U2w0WZ2YB/++Tpockg=
+github.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCj7ndNxQowgcQnjshcLrqPEiiphnt+VTTvDP6mHBL9j1aNUkY4Ue1gvwnGLVlOhGeYrnZaMgRK6+PKCUXaDbC7qtbW8gIkhL7aGCsOr/C56SJMy/BCZfxd1nWzAOxSDPgVsmerOBYfNqltV9/hWCqBywINIR+5dIg6JTJ72pcEpEjcYgXkE2YEFXV1JHnsKgbLWNlhScqb2UmyRkQyytRLtL+38TGxkxCflmO+5Z8CSSNY7GidjMIZ7Q4zMjA2n1nGrlTDkzwDCsw+wqFPGQA179cnfGWOWRVruj16z6XyvxvjJwbz0wQZ75XK5tKSb7FNyeIEs4TT4jk+S4dhPeAUC5y+bDYirYgM4GC7uEnztnZyaVWQ7B381AK4Qdrwt51ZqExKbQpTUNn+EjqoTwvqNj4kqx5QUCI0ThS/YkOxJCXmPUWZbhjpCg56i+2aB6CmK2JGhn57K5mj0MNdBXA4/WnwH6XoPWJzK5Nyu2zB3nAZp+S5hpQs+p1vN1/wsjk=
+EOT
+    fi
+}
 
 # GitHub beendet "ssh -T" auch bei Erfolg mit Exit-Code 1 - deshalb Ausgabe
 # einfangen (|| true) und auf den Erfolgstext pruefen, statt den Pipeline-
 # Status zu verwenden (der waere mit pipefail immer "Fehler").
 github_auth_ok() {
     local out
-    out=$(ssh -n -T -o StrictHostKeyChecking=accept-new git@github.com 2>&1 || true)
+    out=$(ssh -n -T -o StrictHostKeyChecking=yes git@github.com 2>&1 || true)
     printf '%s' "$out" | grep -q "successfully authenticated"
 }
 
@@ -92,6 +110,7 @@ EOT
     # ------------------------------------------------------------------
     # 3. Key bei GitHub freischalten (menschliches Gate)
     # ------------------------------------------------------------------
+    ensure_github_hostkeys
     if ! github_auth_ok; then
         echo -e "${YELLOW}--- BITTE KEY BEI GITHUB HINTERLEGEN ---${NC}"
         echo "https://github.com/settings/ssh/new"
@@ -127,13 +146,13 @@ EOT
     fi
     local ZSH_CUSTOM="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}"
     if [ ! -d "$ZSH_CUSTOM/plugins/zsh-autosuggestions" ]; then
-        git clone https://github.com/zsh-users/zsh-autosuggestions "$ZSH_CUSTOM/plugins/zsh-autosuggestions"
+        git clone --depth 1 --branch "$ZSH_AUTOSUGGESTIONS_TAG" https://github.com/zsh-users/zsh-autosuggestions "$ZSH_CUSTOM/plugins/zsh-autosuggestions"
     fi
     if [ ! -d "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" ]; then
-        git clone https://github.com/zsh-users/zsh-syntax-highlighting.git "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting"
+        git clone --depth 1 --branch "$ZSH_SYNTAX_HIGHLIGHTING_TAG" https://github.com/zsh-users/zsh-syntax-highlighting.git "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting"
     fi
     if [ ! -d "$ZSH_CUSTOM/themes/powerlevel10k" ]; then
-        git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "$ZSH_CUSTOM/themes/powerlevel10k"
+        git clone --depth 1 --branch "$POWERLEVEL10K_TAG" https://github.com/romkatv/powerlevel10k.git "$ZSH_CUSTOM/themes/powerlevel10k"
     fi
     if [ "${SHELL:-}" != "$(command -v zsh)" ]; then
         sudo chsh -s "$(command -v zsh)" "$(whoami)"
@@ -143,8 +162,12 @@ EOT
     # 5. chezmoi + Dotfiles
     # ------------------------------------------------------------------
     echo -e "${YELLOW}--- 5. chezmoi + Dotfiles ---${NC}"
+    # Installer bewusst NICHT als root pipen (Audit DOT-03): Installation als
+    # User nach ~/.local/bin (liegt per Dotfiles im PATH).
+    export PATH="$HOME/.local/bin:$PATH"
     if ! command -v chezmoi >/dev/null 2>&1; then
-        sudo sh -c "$(curl -fsLS get.chezmoi.io)" -- -b /usr/local/bin
+        mkdir -p "$HOME/.local/bin"
+        sh -c "$(curl -fsLS get.chezmoi.io)" -- -b "$HOME/.local/bin"
     fi
     chezmoi init --apply "$DOTFILES_REPO"
     echo -e "${GREEN}Dotfiles angewendet.${NC}"
